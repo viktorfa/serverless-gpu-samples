@@ -9,3 +9,4 @@ inferless-cli # inferless
 keyrings.alt # inferless
 runpod # runpod
 beam-sdk # beam
+mosec # modelz

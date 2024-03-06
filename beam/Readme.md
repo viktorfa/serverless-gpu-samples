@@ -1,3 +1,5 @@
+Beam will charge your credit card when you register, was 5USD for me.
+
 Install the beam CLI with `curl https://raw.githubusercontent.com/slai-labs/get-beam/main/get-beam.sh -sSfL | sh`
 
 Authenticate with the CLI with `beam configure --clientId=CLIENT_ID --clientSecret=CLIENT_SECRET`
