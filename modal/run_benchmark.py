@@ -6,6 +6,8 @@ import time
 from functools import partial
 import requests
 from dotenv import load_dotenv
+import replicate
+from pydantic import BaseModel
 
 
 image = (
@@ -14,6 +16,8 @@ image = (
     .pip_install("asyncio")
     .pip_install("requests")
     .pip_install("python-dotenv")
+    .pip_install("replicate")
+    .pip_install("pydantic")
     .env({"HALT_AND_CATCH_FIRE": 0})
 )
 
@@ -23,6 +27,12 @@ stub = modal.Stub("run-benchmark")
 print("is_local() module", modal.is_local())
 
 
+class FunctionParams(BaseModel):
+    vendors: list[str] = []
+    gpu_types: list[str] = []
+    function_types: list[str] = []
+
+
 @stub.function(
     image=image,
     secrets=[
@@ -30,10 +40,13 @@ print("is_local() module", modal.is_local())
         modal.Secret.from_name("benchmark-secrets"),
     ],
     schedule=modal.Period(hours=6),
+    timeout=600,
 )
-async def my_function():
+async def my_function(args: FunctionParams = None):
     print("is_local() function", modal.is_local())
     print('os.getenv("DB_URL")', os.getenv("DB_URL"))
+    print(f"args: {args}")
+
     hello_gpu_f = modal.Function.lookup("hello-gpu", "f")
     hello_gpu = partial(hello_gpu_f.remote, x=15)
     hello_torch_cls = modal.Cls.lookup("hello-torch", "Model")
@@ -127,6 +140,62 @@ async def my_function():
         ),
     )
 
+    hello_gpu_mystic = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://www.mystic.ai/v4/runs",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ['MYSTIC_API_TOKEN']}",
+            },
+            json={
+                "inputs": [
+                    {
+                        "type": "integer",
+                        "value": 10,
+                    },
+                ],
+                "pipeline": "vikfand/hello-gpu:v5",
+                "async_run": False,
+                "wait_for_resources": True,
+            },
+        ),
+    )
+    hello_torch_mystic = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://www.mystic.ai/v4/runs",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ['MYSTIC_API_TOKEN']}",
+            },
+            json={
+                "inputs": [
+                    {
+                        "type": "integer",
+                        "value": 5,
+                    },
+                ],
+                "pipeline": "vikfand/hello-torch:v5",
+                "async_run": False,
+                "wait_for_resources": True,
+            },
+        ),
+    )
+
+    hello_gpu_replicate = partial(
+        replicate.run,
+        "viktorfa/hello-gpu:7ba7d6ce64dcaf85b0c1efb6e1168417c6c05b0b76a9217394e2a153be662dec",
+        input={"number": 5},
+    )
+    hello_torch_replicate = partial(
+        replicate.run,
+        "viktorfa/hello-torch:3b297a2624682c11dfcbfd0aaecf9eebf14f2e8164069722cc733291ad5f22a0",
+        input={"number": 5},
+    )
+
     configs = [
         {
             "vendor": "modal",
@@ -176,7 +245,45 @@ async def my_function():
             "function_type": "hello_torch",
             "function": hello_torch_beam,
         },
+        {
+            "vendor": "mystic",
+            "gpu_type": "t4",
+            "function_type": "hello_gpu",
+            "function": hello_gpu_mystic,
+        },
+        {
+            "vendor": "mystic",
+            "gpu_type": "t4",
+            "function_type": "hello_torch",
+            "function": hello_torch_mystic,
+        },
+        {
+            "vendor": "replicate",
+            "gpu_type": "t4",
+            "function_type": "hello_gpu",
+            "function": hello_gpu_replicate,
+        },
+        {
+            "vendor": "replicate",
+            "gpu_type": "t4",
+            "function_type": "hello_torch",
+            "function": hello_torch_replicate,
+        },
     ]
+
+    if args:
+        if args.vendors:
+            configs = [config for config in configs if config["vendor"] in args.vendors]
+        if args.gpu_types:
+            configs = [
+                config for config in configs if config["gpu_type"] in args.gpu_types
+            ]
+        if args.function_types:
+            configs = [
+                config
+                for config in configs
+                if config["function_type"] in args.function_types
+            ]
 
     async with libsql_client.create_client(
         url=os.getenv("DB_URL") or "libsql://gpu-benchmark-viktorfa.turso.io",
@@ -186,6 +293,10 @@ async def my_function():
 
         # vendors = await db_client.execute("SELECT DISTINCT * FROM vendors")
         # print("vendors", vendors.rows)
+
+        print("Connected to db")
+
+        print(f"Running {len(configs)} benchmarks")
 
         results = await asyncio.gather(
             *[run_and_record_result(db_client, config) for config in configs]
@@ -202,27 +313,37 @@ def main():
     load_dotenv(".env.local")
 
     result = asyncio.run(my_function.local())
-    # result = my_function.remote()
+
+    # result = my_function.remote(args=FunctionParams(vendors=["modal"]))
 
     print("result", result)
 
 
-def run_web_function(request_f: callable):
-    result = request_f()
+async def run_web_function(request_f: callable):
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, request_f)
 
     print("result")
     print(result)
 
-    return result.json()
+    if result.ok:
+        return result.json()
+    else:
+        raise Exception(f"Error: {result.status_code} {result.reason}")
 
 
-def run_benchmark_wrapper(f: callable):
+async def run_benchmark_wrapper(f: callable):
+    is_coroutine = asyncio.iscoroutinefunction(f)
+    loop = asyncio.get_running_loop()
     start_time = time.perf_counter()
     is_success = False
     error = None
     result = None
     try:
-        result = f()
+        if is_coroutine:
+            result = await f()
+        else:
+            result = await loop.run_in_executor(None, f)
         is_success = True
     except Exception as e:
         print(e)
@@ -239,12 +360,19 @@ def run_benchmark_wrapper(f: callable):
 
 async def run_and_record_result(db_client: libsql_client.Client, config: dict):
     # Run the benchmark wrapper to get the function execution time and success status
-    benchmark_result = run_benchmark_wrapper(config["function"])
+    print(f"Starting benchmark for {config['vendor']} {config['function_type']}")
+    benchmark_result = await run_benchmark_wrapper(config["function"])
+    print(
+        f"Finished benchmark for {config['vendor']} {config['function_type']}, success: {benchmark_result['is_success']}"
+    )
+    error = benchmark_result.get("error")
+    if error:
+        print(f"Error: {error} for {config['vendor']} {config['function_type']}")
 
     # Insert the benchmark results into the database
     # Adapt the INSERT statement to match your database schema
-    await db_client.execute(
-        "INSERT INTO function_runs (vendor, total_time_ms, run_time_ms, gpu_type, function_type, status, error) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    insert_result = await db_client.execute(
+        "INSERT INTO function_runs (vendor, total_time_ms, run_time_ms, gpu_type, function_type, status, error) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
         [
             config["vendor"],
             round(benchmark_result["total_time_s"] * 1000),
@@ -254,8 +382,12 @@ async def run_and_record_result(db_client: libsql_client.Client, config: dict):
             config["gpu_type"],
             config["function_type"],
             "SUCCESS" if benchmark_result["is_success"] else "FAILURE",
-            benchmark_result["error"] if benchmark_result.get("error") else None,
+            error,
         ],
+    )
+
+    print(
+        f"Inserted benchmark for {config['vendor']} {config['function_type']} with id {insert_result.last_insert_rowid}"
     )
 
     return benchmark_result
