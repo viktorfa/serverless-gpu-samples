@@ -3,3 +3,7 @@ cog # replicate
 replicate # replicate
 modal # modal
 libsql-client # To save benchmarks
+requests # Modal run benchmarks
+python-dotenv # Modal run benchmarks
+inferless-cli # inferless
+keyrings.alt # inferless

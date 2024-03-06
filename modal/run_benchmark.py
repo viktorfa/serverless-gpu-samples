@@ -4,36 +4,74 @@ import asyncio
 import libsql_client
 import time
 from functools import partial
+import requests
+from dotenv import load_dotenv
 
 
 image = (
     modal.Image.debian_slim(python_version="3.10")
     .pip_install("libsql-client")
     .pip_install("asyncio")
+    .pip_install("requests")
+    .pip_install("python-dotenv")
     .env({"HALT_AND_CATCH_FIRE": 0})
 )
 
 stub = modal.Stub("run-benchmark")
 
-if modal.is_local():
-    local_secret = modal.Secret.from_dict({"DB_URL": "libsql://127.0.0.1:8080?tls=0"})
-else:
-    local_secret = modal.Secret.from_dict(
-        {"DB_URL": "libsql://gpu-benchmark-viktorfa.turso.io"}
-    )
+
+print("is_local() module", modal.is_local())
 
 
 @stub.function(
     image=image,
-    secrets=[modal.Secret.from_name("benchmark-secrets")],
+    secrets=[
+        modal.Secret.from_dict({"DB_URL": "libsql://gpu-benchmark-viktorfa.turso.io"}),
+        modal.Secret.from_name("benchmark-secrets"),
+    ],
     schedule=modal.Period(hours=6),
 )
 async def my_function():
+    print("is_local() function", modal.is_local())
+    print('os.getenv("DB_URL")', os.getenv("DB_URL"))
     hello_gpu_f = modal.Function.lookup("hello-gpu", "f")
     hello_gpu = partial(hello_gpu_f.remote, x=15)
     hello_torch_cls = modal.Cls.lookup("hello-torch", "Model")
     hello_torch_obj = hello_torch_cls()
     hello_torch = partial(hello_torch_obj.predict.remote, x=12)
+
+    hello_gpu_inferless = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://m-8998c4c09b5c4483ac5612770fc01b6e-m.default.model-v1.inferless.com/v2/models/hello-gpu_8998c4c09b5c4483ac5612770fc01b6e/versions/1/infer",
+            headers={
+                "Authorization": f"Bearer {os.environ['INFERLESS_API_TOKEN']}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "inputs": [
+                    {"name": "x", "shape": [1], "data": ["4"], "datatype": "BYTES"}
+                ],
+            },
+        ),
+    )
+    hello_torch_inferless = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://m-230039ace7cf4d648cd250b16e4a3f59-m.default.model-v1.inferless.com/v2/models/hello-torch_230039ace7cf4d648cd250b16e4a3f59/versions/1/infer",
+            headers={
+                "Authorization": f"Bearer {os.environ['INFERLESS_API_TOKEN']}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "inputs": [
+                    {"name": "x", "shape": [1], "data": ["4"], "datatype": "BYTES"}
+                ],
+            },
+        ),
+    )
 
     configs = [
         {
@@ -48,6 +86,18 @@ async def my_function():
             "function_type": "hello_torch",
             "function": hello_torch,
         },
+        {
+            "vendor": "inferless",
+            "gpu_type": "t4",
+            "function_type": "hello_gpu",
+            "function": hello_gpu_inferless,
+        },
+        {
+            "vendor": "inferless",
+            "gpu_type": "t4",
+            "function_type": "hello_torch",
+            "function": hello_torch_inferless,
+        },
     ]
 
     async with libsql_client.create_client(
@@ -55,6 +105,10 @@ async def my_function():
         auth_token=os.getenv("TURSO_DATABASE_AUTH_TOKEN"),
     ) as client:
         db_client = client
+
+        # vendors = await db_client.execute("SELECT DISTINCT * FROM vendors")
+        # print("vendors", vendors.rows)
+
         results = await asyncio.gather(
             *[run_and_record_result(db_client, config) for config in configs]
         )
@@ -66,10 +120,22 @@ async def my_function():
 
 @stub.local_entrypoint()
 def main():
+    print("is_local() entrypoint", modal.is_local())
+    load_dotenv(".env.local")
+
     result = asyncio.run(my_function.local())
     # result = my_function.remote()
 
     print("result", result)
+
+
+def run_web_function(request_f: callable):
+    result = request_f()
+
+    print("result")
+    print(result)
+
+    return result.json()
 
 
 def run_benchmark_wrapper(f: callable):

@@ -1,0 +1,10 @@
+build:
+  # cuda_version: we currently support 12.1.1 and 11.8.0.
+  cuda_version: 12.1.1
+  python_packages:
+  - pytorch
+  - numpy
+    # you can add more python packages here
+  system_packages:
+    # - "libssl-dev" #example
+    # you can add system packages here
