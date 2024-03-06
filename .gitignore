@@ -1,3 +1,7 @@
 .cog/
 bin/
 node_modules/
+
+*.pyc
+.env
+.env.local

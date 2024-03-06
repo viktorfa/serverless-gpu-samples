@@ -1,3 +1,5 @@
 pipeline-ai # mystic.ai
 cog # replicate
 replicate # replicate
+modal # modal
+libsql-client # To save benchmarks
