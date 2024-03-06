@@ -102,6 +102,31 @@ async def my_function():
         ),
     )
 
+    hello_gpu_beam = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://u8g9t.apps.beam.cloud",
+            headers={
+                "Content-Type": "application/json",
+            },
+            json={"x": 4},
+            auth=(os.environ["BEAM_API_CLIENT"], os.environ["BEAM_API_SECRET"]),
+        ),
+    )
+    hello_torch_beam = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://motbx.apps.beam.cloud",
+            headers={
+                "Content-Type": "application/json",
+            },
+            json={"x": 8},
+            auth=(os.environ["BEAM_API_CLIENT"], os.environ["BEAM_API_SECRET"]),
+        ),
+    )
+
     configs = [
         {
             "vendor": "modal",
@@ -138,6 +163,18 @@ async def my_function():
             "gpu_type": "16gb",
             "function_type": "hello_torch",
             "function": hello_torch_runpod,
+        },
+        {
+            "vendor": "beam",
+            "gpu_type": "t4",
+            "function_type": "hello_gpu",
+            "function": hello_gpu_beam,
+        },
+        {
+            "vendor": "beam",
+            "gpu_type": "t4",
+            "function_type": "hello_torch",
+            "function": hello_torch_beam,
         },
     ]
 
