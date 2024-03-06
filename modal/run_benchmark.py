@@ -73,6 +73,35 @@ async def my_function():
         ),
     )
 
+    hello_gpu_runpod = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://api.runpod.ai/v2/vk41rg62gap3gs/runsync",
+            headers={
+                "Authorization": f"Bearer {os.environ['RUNPOD_API_TOKEN']}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "input": {"x": 4},
+            },
+        ),
+    )
+    hello_torch_runpod = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://api.runpod.ai/v2/spuu8pqxc80gnm/runsync",
+            headers={
+                "Authorization": f"Bearer {os.environ['RUNPOD_API_TOKEN']}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "input": {"x": 8},
+            },
+        ),
+    )
+
     configs = [
         {
             "vendor": "modal",
@@ -97,6 +126,18 @@ async def my_function():
             "gpu_type": "t4",
             "function_type": "hello_torch",
             "function": hello_torch_inferless,
+        },
+        {
+            "vendor": "runpod",
+            "gpu_type": "16gb",
+            "function_type": "hello_gpu",
+            "function": hello_gpu_runpod,
+        },
+        {
+            "vendor": "runpod",
+            "gpu_type": "16gb",
+            "function_type": "hello_torch",
+            "function": hello_torch_runpod,
         },
     ]
 
