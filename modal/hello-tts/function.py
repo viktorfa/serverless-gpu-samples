@@ -76,11 +76,11 @@ class HelloTts:
         self.load_time = self.end_load - self.start_load
 
     @modal.method()
-    def predict(self, args: HelloTtsParams) -> HelloTtsResult:
+    def predict(self, invoke_time_s: float) -> HelloTtsResult:
         start_infer = time.time()
-        time_to_infer = start_infer - args.invoke_time_s
-        is_cold_start = args.invoke_time_s < self.start_load
-        cold_start_time = self.start_load - args.invoke_time_s
+        time_to_infer = start_infer - invoke_time_s
+        is_cold_start = invoke_time_s < self.start_load
+        cold_start_time = self.start_load - invoke_time_s
 
         tts_string = f"I used {self.load_time:.2f} seconds to load the model and {time_to_infer:.2f} seconds to get here"
         tts_inputs = self.tts_processor(tts_string, return_tensors="pt")

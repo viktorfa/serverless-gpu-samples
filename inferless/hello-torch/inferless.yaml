@@ -18,7 +18,7 @@ configuration:
   custom_volume_name: ''
 
   gpu_type: T4
-  inference_time: '30'
+  inference_time: '120'
   is_dedicated: true
   is_serverless: false
   max_replica: '1'

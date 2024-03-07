@@ -17,7 +17,9 @@ image = (
     .pip_install("requests")
     .pip_install("python-dotenv")
     .pip_install("replicate")
-    .pip_install("pydantic")
+    .pip_install(
+        "pydantic==2.6.3",
+    )
     .env({"HALT_AND_CATCH_FIRE": 0})
 )
 
@@ -48,10 +50,13 @@ async def my_function(args: FunctionParams = None):
     print(f"args: {args}")
 
     hello_gpu_f = modal.Function.lookup("hello-gpu", "f")
-    hello_gpu = partial(hello_gpu_f.remote, x=15)
+    hello_gpu_modal = partial(hello_gpu_f.remote, x=15)
     hello_torch_cls = modal.Cls.lookup("hello-torch", "Model")
     hello_torch_obj = hello_torch_cls()
-    hello_torch = partial(hello_torch_obj.predict.remote, x=12)
+    hello_torch_modal = partial(hello_torch_obj.predict.remote, x=12)
+    hello_tts_cls = modal.Cls.lookup("hello-tts", "HelloTts")
+    hello_tts_obj = hello_tts_cls()
+    hello_tts_modal = partial(hello_tts_obj.predict.remote, invoke_time_s=time.time())
 
     hello_gpu_inferless = partial(
         run_web_function,
@@ -139,6 +144,18 @@ async def my_function(args: FunctionParams = None):
             auth=(os.environ["BEAM_API_CLIENT"], os.environ["BEAM_API_SECRET"]),
         ),
     )
+    hello_tts_beam = partial(
+        run_web_function,
+        request_f=partial(
+            requests.post,
+            url="https://r6qjj.apps.beam.cloud",
+            headers={
+                "Content-Type": "application/json",
+            },
+            json={"invoke_time_s": time.time()},
+            auth=(os.environ["BEAM_API_CLIENT"], os.environ["BEAM_API_SECRET"]),
+        ),
+    )
 
     hello_gpu_mystic = partial(
         run_web_function,
@@ -201,13 +218,19 @@ async def my_function(args: FunctionParams = None):
             "vendor": "modal",
             "gpu_type": "t4",
             "function_type": "hello_gpu",
-            "function": hello_gpu,
+            "function": hello_gpu_modal,
         },
         {
             "vendor": "modal",
             "gpu_type": "t4",
             "function_type": "hello_torch",
-            "function": hello_torch,
+            "function": hello_torch_modal,
+        },
+        {
+            "vendor": "modal",
+            "gpu_type": "a10g",
+            "function_type": "hello_tts",
+            "function": hello_tts_modal,
         },
         {
             "vendor": "inferless",
@@ -244,6 +267,12 @@ async def my_function(args: FunctionParams = None):
             "gpu_type": "t4",
             "function_type": "hello_torch",
             "function": hello_torch_beam,
+        },
+        {
+            "vendor": "beam",
+            "gpu_type": "a10g",
+            "function_type": "hello_tts",
+            "function": hello_tts_beam,
         },
         {
             "vendor": "mystic",
@@ -312,9 +341,9 @@ def main():
     print("is_local() entrypoint", modal.is_local())
     load_dotenv(".env.local")
 
-    result = asyncio.run(my_function.local())
+    # result = asyncio.run(my_function.local())
 
-    # result = my_function.remote(args=FunctionParams(vendors=["modal"]))
+    result = my_function.remote(args=FunctionParams(function_types=["hello_tts"]))
 
     print("result", result)
 
