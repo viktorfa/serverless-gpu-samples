@@ -3,6 +3,7 @@ bin/
 node_modules/
 __pycache__/
 .wrangler/
+.venv/
 
 *.pyc
 .env
