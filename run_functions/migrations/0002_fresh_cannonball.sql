@@ -1,0 +1,1 @@
+ALTER TABLE function_runs ADD `vendor_run_id` text;

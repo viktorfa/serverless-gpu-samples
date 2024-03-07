@@ -1,11 +1,22 @@
 {
-	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20240222.0",
-		"drizzle-kit": "^0.20.14"
-	},
-	"dependencies": {
-		"drizzle-orm": "^0.29.4",
-		"wrangler": "^3.30.1",
-		"zod": "^3.22.4"
-	}
+  "scripts": {
+    "create-migrations": "drizzle-kit generate:sqlite --schema=./db/schema/index.ts --out=./migrations",
+    "migrate-local": "pnpm dlx tsx migrate-turso.ts",
+    "migrate-remote": "NODE_ENV=production pnpm dlx tsx migrate-turso.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240222.0",
+    "drizzle-kit": "^0.20.14",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.5.2",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.29.4",
+    "hono": "^4.0.9",
+    "ofetch": "^1.3.3",
+    "replicate": "^0.27.1",
+    "wrangler": "^3.30.1",
+    "zod": "^3.22.4"
+  }
 }

@@ -1,4 +1,4 @@
-[[ d1_databases ]]
-binding = "<BINDING_NAME>"
-database_name = "<DATABASE_NAME>"
-database_id = "<UUID>"
+[[d1_databases]]
+binding = "D1Database" # i.e. available in your Worker on env.DB
+database_name = "gpu-benchmarks"
+database_id = "84072333-a718-4046-80c8-68185e6a657d"

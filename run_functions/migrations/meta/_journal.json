@@ -1,0 +1,48 @@
+{
+  "version": "5",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1709647528116,
+      "tag": "0000_flowery_silver_sable",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1709651092987,
+      "tag": "0001_curious_may_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1709720040545,
+      "tag": "0002_fresh_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1709721737148,
+      "tag": "0003_broad_bromley",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1709727127761,
+      "tag": "0004_absurd_blob",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1709736274863,
+      "tag": "0005_bent_joshua_kane",
+      "breakpoints": true
+    }
+  ]
+}

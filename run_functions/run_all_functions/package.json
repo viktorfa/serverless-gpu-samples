@@ -1,0 +1,10 @@
+{
+  "name": "gpu-run-all-functions",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "wrangler-deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev"
+  }
+}

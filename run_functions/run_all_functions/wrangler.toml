@@ -1,0 +1,12 @@
+name = "gpu-run-all-functions"
+main = "src/run-all-functions.ts"
+compatibility_date = "2024-03-04"
+
+[triggers]
+crons = ["0 0 * * *"] # runs midnight every day
+
+[vars]
+DB_URL = "libsql://gpu-benchmark-viktorfa.turso.io"
+
+[env.local]
+vars = { REPLICATE_API_TOKEN = "set secret in .dev.vars", DB_URL = "libsql://localhost:8080?tls=0" }
