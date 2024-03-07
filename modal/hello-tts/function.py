@@ -1,4 +1,5 @@
 import time
+from typing import TypedDict
 from pydantic import BaseModel
 import modal
 import torch
@@ -16,9 +17,9 @@ image = (
     .pip_install("transformers")
     .pip_install("optimum")
     .pip_install("accelerate")
-    .pip_install("pydantic")
+    .pip_install("pydantic==2.6.3")
     .pip_install("scipy")
-    .env({"HALT_AND_CATCH_FIRE": 0})
+    .env({"HALT_AND_CATCH_FIRE": "0"})
 )
 
 stub = modal.Stub("hello-tts")
@@ -28,23 +29,23 @@ class HelloTtsParams(BaseModel):
     invoke_time_s: float
 
 
-class HelloTtsResult(BaseModel):
+class HelloTtsResult(TypedDict):
     infer_time_s: float
     load_time_s: float
-    time_to_run_s: float
+    time_to_infer_s: float
     tts_string: str
     result_url: str
     result_base64: str
     is_cold_start: bool
-    cold_start_time: float
+    cold_start_time_s: float
 
 
 @stub.cls(
     container_idle_timeout=2,
     image=image,
-    gpu=modal.gpu.A100(count=1, size="40GB"),
-    cpu=10.0,
-    memory=72 * 1024,
+    gpu=modal.gpu.A10G(count=1),
+    cpu=7.0,
+    memory=30 * 1024,
 )
 class HelloTts:
     @modal.build()
@@ -75,13 +76,13 @@ class HelloTts:
         self.load_time = self.end_load - self.start_load
 
     @modal.method()
-    def predict(self, args: HelloTtsParams) -> dict:
-        start_run = time.time()
-        time_to_run = start_run - args.invoke_time_s
+    def predict(self, args: HelloTtsParams) -> HelloTtsResult:
+        start_infer = time.time()
+        time_to_infer = start_infer - args.invoke_time_s
         is_cold_start = args.invoke_time_s < self.start_load
         cold_start_time = self.start_load - args.invoke_time_s
 
-        tts_string = f"I used {self.load_time:.2f} seconds to load the model and {time_to_run:.2f} seconds to get here"
+        tts_string = f"I used {self.load_time:.2f} seconds to load the model and {time_to_infer:.2f} seconds to get here"
         tts_inputs = self.tts_processor(tts_string, return_tensors="pt")
         tts_inputs = {key: value.to(self.device) for key, value in tts_inputs.items()}
         tts_result = self.tts_model.generate(**tts_inputs)
@@ -91,18 +92,18 @@ class HelloTts:
         result_file_path = result_dir / "bark_generation.wav"
         wavfile.write(result_file_path, sample_rate, audio_array)
 
-        end_run = time.time()
-        run_time = end_run - start_run
+        end_infer = time.time()
+        infer_time = end_infer - start_infer
 
         return HelloTtsResult(
-            infer_time_s=run_time,
+            infer_time_s=infer_time,
             load_time_s=self.load_time,
-            time_to_run_s=time_to_run,
+            time_to_infer_s=time_to_infer,
             tts_string=tts_string,
             result_url=str(result_file_path),
             result_base64=encode_audio_to_base64(result_file_path),
             is_cold_start=is_cold_start,
-            cold_start_time=cold_start_time,
+            cold_start_time_s=cold_start_time,
         )
 
 
@@ -110,17 +111,17 @@ class HelloTts:
 def main():
     result = HelloTts().predict.remote(HelloTtsParams(invoke_time_s=time.time()))
 
-    print("infer_time_s", result.infer_time_s)
-    print("load_time_s", result.load_time_s)
-    print("time_to_run_s", result.time_to_run_s)
-    print("tts_string", result.tts_string)
-    print("result_url", result.result_url)
-    print("is_cold_start", result.is_cold_start)
-    print("cold_start_time", result.cold_start_time)
+    print("infer_time_s", result["infer_time_s"])
+    print("load_time_s", result["load_time_s"])
+    print("time_to_infer_s", result["time_to_infer_s"])
+    print("tts_string", result["tts_string"])
+    print("result_url", result["result_url"])
+    print("is_cold_start", result["is_cold_start"])
+    print("cold_start_time_s", result["cold_start_time_s"])
 
     print("result type", type(result))
 
-    save_base64_audio_to_file(result.result_base64, "result.wav")
+    save_base64_audio_to_file(result["result_base64"], "result.wav")
 
 
 def encode_audio_to_base64(result_file_path):
