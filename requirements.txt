@@ -10,3 +10,4 @@ keyrings.alt # inferless
 runpod # runpod
 beam-sdk # beam
 mosec # modelz
+transformers # to run tts model
